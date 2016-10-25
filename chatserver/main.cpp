@@ -20,12 +20,19 @@
 #include <pthread.h>
 
 #define PORT 12345
+#define CONCURRENTNUMBER 10
+
+typedef struct{
+    int sockchatting[CONCURRENTNUMBER];
+    int mynumber;
+} defpthreadtransfer;
 
 void kill_zombie_process(int sig);
 void close_process(int unused);
 char *show_ip(char *ip_address);
 
-void* readthreadfunction(void *p);
+void* chats(void *p);
+void* writethreadfunction(void *p);
 
 int main(void){
     
@@ -59,34 +66,16 @@ int main(void){
     
     printf(  " --------- Waiting connects ! -------- \n");
     
-    while(1){
-        int sockchatting;
-        int pid;
-        sockchatting = accept(socklisten, (struct sockaddr *)&client, &size);
-        pid = fork();
-        if(pid != 0){
-            //parent process
-            close(sockchatting);
-            continue; // acceptに戻る。
-        }
-        //child process
-        close(socklisten);
-        printf("%s is connected \n",show_ip((char *)&client.sin_addr));
+    defpthreadtransfer pthreadtransfer = { {} , 0};
+    pthread_t chattingthreads[CONCURRENTNUMBER];
+    while (1) {
+        int i = 0;
+        for(i = 0 ; (pthreadtransfer.sockchatting[i] != 0) && (i < CONCURRENTNUMBER); i++){;}
+        if( i > CONCURRENTNUMBER ){continue;}
         
-        pthread_t readthread;
-        pthread_create(&readthread, NULL, &readthreadfunction , &sockchatting);
-        
-        while(1){
-            char buf[80];
-            memset(buf, '\0', sizeof(buf));
-            recv(sockchatting, buf, 80, 0);
-            printf("%s > %s",show_ip((char *)&client.sin_addr),buf);
-            if(strncmp(buf, "exit", 4) == 0){
-                printf("%s is disconnected \n",show_ip((char *)&client.sin_addr));
-                close(sockchatting);
-                exit(0);
-            }
-        }
+        pthreadtransfer.mynumber = i;
+        pthreadtransfer.sockchatting[i] = accept(socklisten, (struct sockaddr *)&client, &size);
+        pthread_create( &chattingthreads[CONCURRENTNUMBER], nullptr, &chats, &pthreadtransfer);
     }
     return 0;
 }
@@ -111,13 +100,42 @@ char *show_ip(char *ip_address){
     return ip;
 }
 
-void* readthreadfunction(void *p){
+void* writethreadfunction(void *p){
     int sock = *((int *)p);
     while(1){
-        char message[80];
-        fgets(message,80,stdin);
-        send(sock,message,strlen(message),0);
+//        char message[80];
+//        fgets(message,80,stdin);
+//        send(sock,message,strlen(message),0);
     }
-    //never reach
-    //pthread_exit(NULL);
+}
+
+void* chats(void *p){
+    defpthreadtransfer* formaster = (defpthreadtransfer *)p;
+    const int mynumber = formaster->mynumber;
+    
+    printf("%d is connected \n",mynumber);
+    //send(sock,mynumber,strlen(mynumber),0);
+    
+    pthread_t writethread;
+   // pthread_create(&writethread, NULL, &writethreadfunction , &formaster->sockchatting[mynumber]);
+    
+    while (1) {
+        char buf[80];
+        memset(buf, '\0', sizeof(buf));
+        recv(formaster->sockchatting[mynumber], buf, 80, 0);
+        if(buf[0] == '\0'){
+            printf("%d is EMERGENCY disconnected \n",mynumber);
+            break;
+        }
+        printf("%d > %s",mynumber,buf);
+        if(strncmp(buf, "exit", 4) == 0){
+            printf("%d is disconnected \n",mynumber);
+            break;
+        }
+    }
+    
+    close(formaster->sockchatting[mynumber]);
+    pthread_cancel(writethread);
+    formaster->sockchatting[mynumber] = 0;
+    pthread_exit(NULL);
 }
