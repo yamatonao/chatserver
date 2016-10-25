@@ -73,9 +73,10 @@ int main(void){
         for(i = 0 ; (pthreadtransfer.sockchatting[i] != 0) && (i < CONCURRENTNUMBER); i++){;}
         if( i > CONCURRENTNUMBER ){continue;}
         
-        pthreadtransfer.mynumber = i;
+        
         pthreadtransfer.sockchatting[i] = accept(socklisten, (struct sockaddr *)&client, &size);
-        pthread_create( &chattingthreads[CONCURRENTNUMBER], nullptr, &chats, &pthreadtransfer);
+        pthreadtransfer.mynumber = i;
+        pthread_create( &chattingthreads[i], nullptr, &chats, &pthreadtransfer);
     }
     return 0;
 }
@@ -103,9 +104,9 @@ char *show_ip(char *ip_address){
 void* writethreadfunction(void *p){
     int sock = *((int *)p);
     while(1){
-//        char message[80];
-//        fgets(message,80,stdin);
-//        send(sock,message,strlen(message),0);
+        char message[80];
+        fgets(message,80,stdin);
+        send(sock,message,strlen(message),0);
     }
 }
 
@@ -114,10 +115,9 @@ void* chats(void *p){
     const int mynumber = formaster->mynumber;
     
     printf("%d is connected \n",mynumber);
-    //send(sock,mynumber,strlen(mynumber),0);
     
     pthread_t writethread;
-   // pthread_create(&writethread, NULL, &writethreadfunction , &formaster->sockchatting[mynumber]);
+    pthread_create(&writethread, NULL, &writethreadfunction , &formaster->sockchatting[mynumber]);
     
     while (1) {
         char buf[80];
